@@ -169,7 +169,9 @@ func (bc *BaseClient) GetClientToken() error {
 
 func (bc *BaseClient) PartHash(name string) string {
 	if bc.RawHashes == "" {
-		bc.GetSha256Hash()
+		if err := bc.GetSha256Hash(); err != nil {
+			return ""
+		}
 	}
 
 	// Simplified hash extraction
@@ -177,6 +179,9 @@ func (bc *BaseClient) PartHash(name string) string {
 	if idx := strings.Index(bc.RawHashes, searchQuery); idx != -1 {
 		start := idx + len(searchQuery)
 		end := strings.Index(bc.RawHashes[start:], "\"")
+		if end == -1 {
+			return ""
+		}
 		return bc.RawHashes[start : start+end]
 	}
 
@@ -184,6 +189,9 @@ func (bc *BaseClient) PartHash(name string) string {
 	if idx := strings.Index(bc.RawHashes, searchMutation); idx != -1 {
 		start := idx + len(searchMutation)
 		end := strings.Index(bc.RawHashes[start:], "\"")
+		if end == -1 {
+			return ""
+		}
 		return bc.RawHashes[start : start+end]
 	}
 
