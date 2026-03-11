@@ -1,0 +1,169 @@
+package http
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/spotapi/spotapi-go/internal/errors"
+	"github.com/spotapi/spotapi-go/internal/totp"
+)
+
+type BaseClient struct {
+	Client        *Client
+	JsPack        string
+	ClientVersion string
+	AccessToken   string
+	ClientToken   string
+	ClientId      string
+	DeviceId      string
+	RawHashes     string
+	Language      string
+	ServerCfg     map[string]interface{}
+}
+
+// NewBaseClient creates a BaseClient configured with the provided client and language.
+// The created BaseClient is registered on client by setting client.Authenticate to the BaseClient's AuthRule; the language value is used as the Accept-Language header for requests.
+func NewBaseClient(client *Client, language string) *BaseClient {
+	bc := &BaseClient{
+		Client:   client,
+		Language: language,
+	}
+
+	client.Authenticate = bc.AuthRule
+	return bc
+}
+
+func (bc *BaseClient) AuthRule(headers map[string]string) map[string]string {
+	if bc.ClientToken == "" {
+		bc.GetClientToken()
+	}
+
+	if bc.AccessToken == "" {
+		bc.GetSession()
+	}
+
+	if headers == nil {
+		headers = make(map[string]string)
+	}
+
+	headers["Authorization"] = "Bearer " + bc.AccessToken
+	headers["Client-Token"] = bc.ClientToken
+	headers["Spotify-App-Version"] = bc.ClientVersion
+	headers["Accept-Language"] = bc.Language
+
+	return headers
+}
+
+func (bc *BaseClient) GetSession() error {
+	resp, err := bc.Client.Get("https://open.spotify.com", false, nil)
+	if err != nil {
+		return errors.NewBaseClientError("Could not get session", err.Error())
+	}
+
+	bodyStr := fmt.Sprintf("%v", resp.Body)
+
+	// Extract appServerConfig
+	parts := strings.Split(bodyStr, "<script id=\"appServerConfig\" type=\"text/plain\">")
+	if len(parts) > 1 {
+		configPart := strings.Split(parts[1], "</script>")[0]
+		decoded, _ := base64.StdEncoding.DecodeString(configPart)
+		json.Unmarshal(decoded, &bc.ServerCfg)
+
+		if v, ok := bc.ServerCfg["clientVersion"].(string); ok {
+			bc.ClientVersion = v
+		}
+	}
+
+	// Device ID from cookie
+	for _, cookie := range resp.Raw.Cookies() {
+		if cookie.Name == "sp_t" {
+			bc.DeviceId = cookie.Value
+			break
+		}
+	}
+
+	return bc.GetAuthVars()
+}
+
+func (bc *BaseClient) GetAuthVars() error {
+	if bc.AccessToken == "" || bc.ClientId == "" {
+		t, v := totp.GenerateTOTP()
+		url := fmt.Sprintf("https://open.spotify.com/api/token?reason=init&productType=web-player&totp=%s&totpVer=%d&totpServer=%s", t, v, t)
+
+		resp, err := bc.Client.Get(url, false, nil)
+		if err != nil {
+			return errors.NewBaseClientError("Could not get session auth tokens", err.Error())
+		}
+
+		if data, ok := resp.Body.(map[string]interface{}); ok {
+			bc.AccessToken = data["accessToken"].(string)
+			bc.ClientId = data["clientId"].(string)
+		}
+	}
+	return nil
+}
+
+func (bc *BaseClient) GetClientToken() error {
+	if bc.ClientId == "" || bc.DeviceId == "" || bc.ClientVersion == "" {
+		bc.GetSession()
+	}
+
+	url := "https://clienttoken.spotify.com/v1/clienttoken"
+	payload := map[string]interface{}{
+		"client_data": map[string]interface{}{
+			"client_version": bc.ClientVersion,
+			"client_id":      bc.ClientId,
+			"js_sdk_data": map[string]interface{}{
+				"device_brand": "unknown",
+				"device_model": "unknown",
+				"os":           "windows",
+				"os_version":   "NT 10.0",
+				"device_id":    bc.DeviceId,
+				"device_type":  "computer",
+			},
+		},
+	}
+
+	resp, err := bc.Client.Post(url, false, nil, payload)
+	if err != nil {
+		return errors.NewBaseClientError("Could not get client token", err.Error())
+	}
+
+	if data, ok := resp.Body.(map[string]interface{}); ok {
+		if gt, ok := data["granted_token"].(map[string]interface{}); ok {
+			bc.ClientToken = gt["token"].(string)
+		}
+	}
+
+	return nil
+}
+
+func (bc *BaseClient) PartHash(name string) string {
+	if bc.RawHashes == "" {
+		bc.GetSha256Hash()
+	}
+
+	// Simplified hash extraction
+	searchQuery := fmt.Sprintf("\"%s\",\"query\",\"", name)
+	if idx := strings.Index(bc.RawHashes, searchQuery); idx != -1 {
+		start := idx + len(searchQuery)
+		end := strings.Index(bc.RawHashes[start:], "\"")
+		return bc.RawHashes[start : start+end]
+	}
+
+	searchMutation := fmt.Sprintf("\"%s\",\"mutation\",\"", name)
+	if idx := strings.Index(bc.RawHashes, searchMutation); idx != -1 {
+		start := idx + len(searchMutation)
+		end := strings.Index(bc.RawHashes[start:], "\"")
+		return bc.RawHashes[start : start+end]
+	}
+
+	return ""
+}
+
+func (bc *BaseClient) GetSha256Hash() error {
+	// Logic to fetch and parse hashes from JS packs
+	return nil
+}
