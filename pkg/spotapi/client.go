@@ -44,7 +44,7 @@ func NewClient(lang string) (*Client, error) {
 	return c, nil
 }
 
-// ───── Tracks ─────────────────────────────────────────────────────────────
+//  Tracks 
 
 // searchtracks returns up to limit tracks for a query starting at offset.
 func (c *Client) SearchTracks(query string, limit, offset int) ([]Track, error) {
@@ -91,7 +91,7 @@ func (c *Client) GetTrack(id string) (*Track, error) {
 	return t, nil
 }
 
-// ───── Artists ────────────────────────────────────────────────────────────
+//  Artists 
 
 // searchartists returns up to limit artists for the query.
 func (c *Client) SearchArtists(query string, limit, offset int) ([]Artist, error) {
@@ -173,7 +173,7 @@ func (c *Client) GetArtist(id string) (*Artist, []Album, error) {
 	return a, albums, nil
 }
 
-// ───── Albums ─────────────────────────────────────────────────────────────
+//  Albums 
 
 // getalbum returns album metadata and up to limit tracks starting at offset; accepts bare album ids or spotify uris/urls.
 func (c *Client) GetAlbum(id string, limit, offset int) (*Album, error) {
@@ -190,7 +190,7 @@ func (c *Client) GetAlbum(id string, limit, offset int) (*Album, error) {
 	return al, nil
 }
 
-// ───── Playlists ──────────────────────────────────────────────────────────
+//  Playlists 
 
 // searchalbums returns up to limit albums for the query; totalTracks is not populated (call getalbum for full detail).
 func (c *Client) SearchAlbums(query string, limit, offset int) ([]Album, error) {
@@ -249,7 +249,7 @@ func (c *Client) GetPlaylist(id string, limit, offset int) (*Playlist, error) {
 	return pl, nil
 }
 
-// ───── internal helpers ───────────────────────────────────────────────────
+//  internal helpers 
 
 func stripPrefix(s, prefix string) string {
 	if strings.HasPrefix(s, prefix) {
