@@ -1,0 +1,333 @@
+// Package spotapi provides a high-level Go client for the Spotify private
+// partner API. It requires no OAuth credentials — authentication is done via
+// the same session / TOTP flow that the Spotify web player uses.
+//
+// Quick start:
+//
+//	c, err := spotapi.NewClient("en")
+//	tracks, err := c.SearchTracks("Lucy Bedroque", 10, 0)
+//
+// Module path:  github.com/spotapi/spotapi-go
+package spotapi
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/bogdanfinn/tls-client/profiles"
+	sphttp "github.com/spotapi/spotapi-go/internal/http"
+)
+
+// Client is the top-level handle for all Spotify API operations.
+// Create one with NewClient and reuse it — the underlying TLS session and
+// access tokens are cached and refreshed automatically.
+type Client struct {
+	lang   string
+	http   *sphttp.Client
+	song   *Song
+	artist *artistService
+}
+
+// NewClient creates a ready-to-use Client with Chrome 120 TLS fingerprint.
+// lang is the BCP-47 language code for results (e.g. "en", "ru"); pass ""
+// to default to "en".
+func NewClient(lang string) (*Client, error) {
+	if lang == "" {
+		lang = "en"
+	}
+	h, err := sphttp.NewClient(profiles.Chrome_120, "", 3)
+	if err != nil {
+		return nil, fmt.Errorf("spotapi: create http client: %w", err)
+	}
+	c := &Client{
+		lang: lang,
+		http: h,
+	}
+	c.song = NewSong(nil, h, lang)
+	c.artist = NewArtist(nil, h, lang)
+	return c, nil
+}
+
+// ───── Tracks ─────────────────────────────────────────────────────────────
+
+// SearchTracks returns up to limit tracks matching query, starting at offset.
+func (c *Client) SearchTracks(query string, limit, offset int) ([]Track, error) {
+	raw, err := c.song.QuerySongs(query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("spotapi: SearchTracks: %w", err)
+	}
+
+	tracks, _ := digMap(raw, "data", "searchV2", "tracks")["items"].([]interface{})
+	var out []Track
+	for _, item := range tracks {
+		im, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		// searchV2 wraps in "item.data"
+		data := digMap(im, "item", "data")
+		if data == nil {
+			// fallback: direct "track" key (older schema)
+			data = digMap(im, "track")
+		}
+		if t := parseSearchTrackItem(data); t != nil && t.ID != "" {
+			out = append(out, *t)
+		}
+	}
+	return out, nil
+}
+
+// GetTrack returns full metadata for a single track by its Spotify ID.
+// Accepts bare IDs ("5nujrmhLynf4yMoMtj8AQF") or full URIs
+// ("spotify:track:5nujrmhLynf4yMoMtj8AQF").
+func (c *Client) GetTrack(id string) (*Track, error) {
+	id = stripPrefix(id, "spotify:track:")
+	raw, err := c.song.GetTrackInfo(id)
+	if err != nil {
+		return nil, fmt.Errorf("spotapi: GetTrack: %w", err)
+	}
+	union := digMap(raw, "data", "trackUnion")
+	if union == nil {
+		union = digMap(raw, "data", "track")
+	}
+	t := parseTrackUnion(union)
+	if t == nil || t.ID == "" {
+		return nil, fmt.Errorf("spotapi: GetTrack: empty response for id=%s", id)
+	}
+	return t, nil
+}
+
+// ───── Artists ────────────────────────────────────────────────────────────
+
+// SearchArtists returns up to limit artists matching query.
+func (c *Client) SearchArtists(query string, limit, offset int) ([]Artist, error) {
+	raw, err := c.artist.QueryArtists(query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("spotapi: SearchArtists: %w", err)
+	}
+
+	items, _ := digMap(raw, "data", "searchV2", "artists")["items"].([]interface{})
+	var out []Artist
+	for _, item := range items {
+		im, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		data := digMap(im, "item", "data")
+		if data == nil {
+			data = digMap(im, "data")
+		}
+		if a := parseArtistData(data); a != nil && a.ID != "" {
+			out = append(out, *a)
+		}
+	}
+	return out, nil
+}
+
+// GetArtist returns a full artist profile by Spotify ID or URI.
+func (c *Client) GetArtist(id string) (*Artist, error) {
+	id = stripPrefix(id, "spotify:artist:")
+	raw, err := c.artist.GetArtist(id, c.lang)
+	if err != nil {
+		return nil, fmt.Errorf("spotapi: GetArtist: %w", err)
+	}
+	data := digMap(raw, "data", "artistUnion")
+	if data == nil {
+		data = digMap(raw, "data", "artist")
+	}
+	a := parseArtistProfile(data)
+	if a == nil || a.ID == "" {
+		return nil, fmt.Errorf("spotapi: GetArtist: empty response for id=%s", id)
+	}
+	return a, nil
+}
+
+// ───── Albums ─────────────────────────────────────────────────────────────
+
+// GetAlbum returns album metadata and up to limit tracks starting at offset.
+// Accepts bare album IDs or Spotify URIs/URLs.
+func (c *Client) GetAlbum(id string, limit, offset int) (*Album, error) {
+	id = stripPrefix(id, "spotify:album:")
+	pa := NewPublicAlbum(id, c.http, c.lang)
+	raw, err := pa.GetAlbumInfo(limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("spotapi: GetAlbum: %w", err)
+	}
+	al := parseAlbumUnion(digMap(raw, "data", "albumUnion"))
+	if al == nil {
+		return nil, fmt.Errorf("spotapi: GetAlbum: empty response for id=%s", id)
+	}
+	return al, nil
+}
+
+// ───── Playlists ──────────────────────────────────────────────────────────
+
+// GetPlaylist returns playlist metadata and up to limit tracks starting at offset.
+// Accepts bare playlist IDs, Spotify URIs, or open.spotify.com URLs.
+func (c *Client) GetPlaylist(id string, limit, offset int) (*Playlist, error) {
+	id = stripPrefix(id, "spotify:playlist:")
+	pp := NewPublicPlaylist(id, c.http, c.lang)
+	raw, err := pp.GetPlaylistInfo(limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("spotapi: GetPlaylist: %w", err)
+	}
+	pl := parsePlaylistData(digMap(raw, "data", "playlistV2"))
+	if pl == nil {
+		return nil, fmt.Errorf("spotapi: GetPlaylist: empty response for id=%s", id)
+	}
+	return pl, nil
+}
+
+// ───── internal helpers ───────────────────────────────────────────────────
+
+func stripPrefix(s, prefix string) string {
+	if strings.HasPrefix(s, prefix) {
+		return s[len(prefix):]
+	}
+	return s
+}
+
+// parseArtistData parses the searchV2 artist data item.
+func parseArtistData(d map[string]interface{}) *Artist {
+	if d == nil {
+		return nil
+	}
+	a := &Artist{
+		ID:   digStr(d, "id"),
+		URI:  digStr(d, "uri"),
+		Name: digStr(d, "profile", "name"),
+	}
+	if vis := digMap(d, "visuals"); vis != nil {
+		if av := digMap(vis, "avatarImage"); av != nil {
+			a.AvatarURL = bestCover(av)
+		}
+	}
+	return a
+}
+
+// parseArtistProfile parses the queryArtistOverview artistUnion.
+func parseArtistProfile(d map[string]interface{}) *Artist {
+	if d == nil {
+		return nil
+	}
+	a := &Artist{
+		ID:   digStr(d, "id"),
+		URI:  digStr(d, "uri"),
+		Name: digStr(d, "profile", "name"),
+	}
+	if bio := digMap(d, "profile"); bio != nil {
+		a.Biography = digStr(bio, "biography", "text")
+	}
+	if stats := digMap(d, "stats"); stats != nil {
+		if ml, ok := stats["monthlyListeners"].(float64); ok {
+			a.MonthlyListeners = int64(ml)
+		}
+	}
+	if vis := digMap(d, "visuals"); vis != nil {
+		if av := digMap(vis, "avatarImage"); av != nil {
+			a.AvatarURL = bestCover(av)
+		}
+	}
+	return a
+}
+
+// parseAlbumUnion converts albumUnion map into an Album.
+func parseAlbumUnion(d map[string]interface{}) *Album {
+	if d == nil {
+		return nil
+	}
+	al := &Album{
+		ID:    digStr(d, "id"),
+		URI:   digStr(d, "uri"),
+		Title: digStr(d, "name"),
+	}
+	if artists := digMap(d, "artists"); artists != nil {
+		names := artistNames(artists)
+		if len(names) > 0 {
+			al.Artist = names[0]
+		}
+	}
+	if ca := digMap(d, "coverArt"); ca != nil {
+		al.CoverURL = bestCover(ca)
+	}
+	if date := digMap(d, "date"); date != nil {
+		al.ReleaseDate = digStr(date, "isoString")
+		if al.ReleaseDate == "" {
+			if y, ok := date["year"].(float64); ok {
+				al.ReleaseDate = fmt.Sprintf("%d", int(y))
+			}
+		}
+	}
+	if tracks := digMap(d, "tracks"); tracks != nil {
+		if tc, ok := tracks["totalCount"].(float64); ok {
+			al.TotalTracks = int(tc)
+		}
+		if items, ok := tracks["items"].([]interface{}); ok {
+			for _, it := range items {
+				im, ok := it.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				trackObj := digMap(im, "track")
+				if trackObj == nil {
+					continue
+				}
+				at := AlbumTrack{
+					URI: digStr(trackObj, "uri"),
+				}
+				if tn, ok := trackObj["trackNumber"].(float64); ok {
+					at.TrackNumber = int(tn)
+				}
+				al.Tracks = append(al.Tracks, at)
+			}
+		}
+	}
+	return al
+}
+
+// parsePlaylistData converts a playlistV2 map into a Playlist.
+func parsePlaylistData(d map[string]interface{}) *Playlist {
+	if d == nil {
+		return nil
+	}
+	pl := &Playlist{
+		ID:          digStr(d, "id"),
+		URI:         digStr(d, "uri"),
+		Title:       digStr(d, "name"),
+		Description: digStr(d, "description"),
+		Owner:       digStr(d, "ownerV2", "data", "name"),
+	}
+	if images := digMap(d, "images"); images != nil {
+		if items, ok := images["items"].([]interface{}); ok && len(items) > 0 {
+			if first, ok := items[0].(map[string]interface{}); ok {
+				if srcs, ok := first["sources"].([]interface{}); ok && len(srcs) > 0 {
+					if s, ok := srcs[0].(map[string]interface{}); ok {
+						pl.CoverURL, _ = s["url"].(string)
+					}
+				}
+			}
+		}
+	}
+	if content := digMap(d, "content"); content != nil {
+		if tc, ok := content["totalCount"].(float64); ok {
+			pl.TotalTracks = int(tc)
+		}
+		if items, ok := content["items"].([]interface{}); ok {
+			for _, it := range items {
+				im, ok := it.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				ref := PlaylistTrackRef{
+					AddedAt:   digStr(im, "addedAt", "isoString"),
+					AddedByID: digStr(im, "addedBy", "data", "uri"),
+				}
+				if trackData := digMap(im, "itemV2", "data"); trackData != nil {
+					ref.URI = digStr(trackData, "uri")
+				}
+				pl.Tracks = append(pl.Tracks, ref)
+			}
+		}
+	}
+	return pl
+}

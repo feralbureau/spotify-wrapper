@@ -61,7 +61,7 @@ func (s *Song) GetTrackInfo(trackId string) (map[string]interface{}, error) {
 		return data, nil
 	}
 
-	return nil, errors.NewSongError("Invalid JSON", "")
+	return nil, errors.NewSongError("Invalid JSON", fmt.Sprintf("body=%v", resp.Body))
 }
 
 func (s *Song) QuerySongs(query string, limit int, offset int) (map[string]interface{}, error) {
@@ -104,7 +104,7 @@ func (s *Song) QuerySongs(query string, limit int, offset int) (map[string]inter
 		return data, nil
 	}
 
-	return nil, errors.NewSongError("Invalid JSON", "")
+	return nil, errors.NewSongError("Invalid JSON", fmt.Sprintf("body=%v", resp.Body))
 }
 
 func (s *Song) AddSongsToPlaylist(songIds []string) error {

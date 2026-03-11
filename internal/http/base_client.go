@@ -14,6 +14,7 @@ import (
 type BaseClient struct {
 	Client        *Client
 	JsPack        string
+	AllJsPacks    []string
 	ClientVersion string
 	AccessToken   string
 	ClientToken   string
@@ -54,13 +55,28 @@ func (bc *BaseClient) AuthRule(headers map[string]string) (map[string]string, er
 	headers["Authorization"] = "Bearer " + bc.AccessToken
 	headers["Client-Token"] = bc.ClientToken
 	headers["Spotify-App-Version"] = bc.ClientVersion
+	headers["Accept"] = "application/json"
 	headers["Accept-Language"] = bc.Language
+	headers["Content-Type"] = "application/json;charset=UTF-8"
+	headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	headers["app-platform"] = "WebPlayer"
+	headers["Origin"] = "https://open.spotify.com"
+	headers["Referer"] = "https://open.spotify.com/"
 
 	return headers, nil
 }
 
 func (bc *BaseClient) GetSession() error {
-	resp, err := bc.Client.Get("https://open.spotify.com", false, nil)
+	desktopHeaders := map[string]string{
+		"User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+		"Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+		"Accept-Language": "en-US,en;q=0.9",
+		"Sec-Fetch-Dest":  "document",
+		"Sec-Fetch-Mode":  "navigate",
+		"Sec-Fetch-Site":  "none",
+		"Sec-Fetch-User":  "?1",
+	}
+	resp, err := bc.Client.Get("https://open.spotify.com", false, desktopHeaders)
 	if err != nil {
 		return errors.NewBaseClientError("Could not get session", err.Error())
 	}
@@ -71,10 +87,44 @@ func (bc *BaseClient) GetSession() error {
 	}
 
 	links := utils.ExtractJSLinks(bodyStr)
+	// isJunk returns true for tracking/analytics scripts that never contain
+	// Spotify GraphQL hashes (GTM, retargeting pixels, vendor bundles).
+	isJunk := func(link string) bool {
+		return strings.Contains(link, "vendor~") ||
+			strings.Contains(link, "gtm.") ||
+			strings.Contains(link, "retargeting")
+	}
+	// Pass 1: exact historic desktop pattern
 	for _, link := range links {
-		if strings.Contains(link, "web-player/web-player") && strings.HasSuffix(link, ".js") {
+		if strings.Contains(link, "web-player/web-player") && !isJunk(link) {
 			bc.JsPack = link
 			break
+		}
+	}
+	// Pass 2: any spotifycdn.com web-player bundle
+	if bc.JsPack == "" {
+		for _, link := range links {
+			if strings.Contains(link, "spotifycdn.com") && strings.Contains(link, "web-player") && !isJunk(link) {
+				bc.JsPack = link
+				break
+			}
+		}
+	}
+	// Pass 3: any spotifycdn.com JS that is not junk
+	if bc.JsPack == "" {
+		for _, link := range links {
+			if strings.Contains(link, "spotifycdn.com") && !isJunk(link) {
+				bc.JsPack = link
+				break
+			}
+		}
+	}
+
+	// Save all non-junk bundles for hash search
+	bc.AllJsPacks = bc.AllJsPacks[:0]
+	for _, link := range links {
+		if !isJunk(link) && link != bc.JsPack {
+			bc.AllJsPacks = append(bc.AllJsPacks, link)
 		}
 	}
 
@@ -164,7 +214,11 @@ func (bc *BaseClient) GetClientToken() error {
 		},
 	}
 
-	resp, err := bc.Client.Post(url, false, nil, payload)
+	headers := map[string]string{
+		"Content-Type": "application/json",
+		"Accept":       "application/json",
+	}
+	resp, err := bc.Client.Post(url, false, headers, payload)
 	if err != nil {
 		return errors.NewBaseClientError("Could not get client token", err.Error())
 	}
@@ -239,14 +293,29 @@ func (bc *BaseClient) GetSha256Hash() error {
 	}
 	bc.RawHashes = bodyStr
 
+	// Also load any other known bundles (e.g. vendor bundle) to widen hash search
+	for _, extra := range bc.AllJsPacks {
+		if eResp, eErr := bc.Client.Get(extra, false, nil); eErr == nil {
+			if bStr, ok := eResp.Body.(string); ok {
+				bc.RawHashes += bStr
+			}
+		}
+	}
+
+	// Derive base URL from the JsPack path (e.g. mobile-web-player/ or web-player/)
+	baseURL := "https://open.spotifycdn.com/cdn/build/web-player/"
+	if idx := strings.LastIndex(bc.JsPack, "/"); idx != -1 {
+		baseURL = bc.JsPack[:idx+1]
+	}
+
 	m1, m2 := utils.ExtractMappings(bc.RawHashes)
 	if m1 == nil || m2 == nil {
-		return nil // Maybe some packs don't have it
+		return nil // Some packs don't carry chunk maps inline
 	}
 
 	urls := utils.CombineChunks(m2, m1)
 	for _, u := range urls {
-		fullUrl := "https://open.spotifycdn.com/cdn/build/web-player/" + u
+		fullUrl := baseURL + u
 		resp, err := bc.Client.Get(fullUrl, false, nil)
 		if err == nil {
 			if bStr, ok := resp.Body.(string); ok {

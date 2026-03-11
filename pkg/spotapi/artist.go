@@ -10,12 +10,12 @@ import (
 	"github.com/spotapi/spotapi-go/internal/http"
 )
 
-type Artist struct {
+type artistService struct {
 	Base  *http.BaseClient
 	login bool
 }
 
-func NewArtist(l *Login, client *http.Client, language string) *Artist {
+func NewArtist(l *Login, client *http.Client, language string) *artistService {
 	var bc *http.BaseClient
 	isLoggedIn := false
 	if l != nil {
@@ -25,13 +25,13 @@ func NewArtist(l *Login, client *http.Client, language string) *Artist {
 		bc = http.NewBaseClient(client, language)
 	}
 
-	return &Artist{
+	return &artistService{
 		Base:  bc,
 		login: isLoggedIn,
 	}
 }
 
-func (a *Artist) QueryArtists(query string, limit int, offset int) (map[string]interface{}, error) {
+func (a *artistService) QueryArtists(query string, limit int, offset int) (map[string]interface{}, error) {
 	u := "https://api-partner.spotify.com/pathfinder/v1/query"
 
 	vars, _ := json.Marshal(map[string]interface{}{
@@ -69,10 +69,10 @@ func (a *Artist) QueryArtists(query string, limit int, offset int) (map[string]i
 		return data, nil
 	}
 
-	return nil, errors.NewArtistError("Invalid JSON", "")
+	return nil, errors.NewArtistError("Invalid JSON", fmt.Sprintf("body=%v", resp.Body))
 }
 
-func (a *Artist) GetArtist(artistId string, localeCode string) (map[string]interface{}, error) {
+func (a *artistService) GetArtist(artistId string, localeCode string) (map[string]interface{}, error) {
 	if strings.Contains(artistId, "artist:") {
 		artistId = strings.Split(artistId, "artist:")[1]
 	}
@@ -110,18 +110,18 @@ func (a *Artist) GetArtist(artistId string, localeCode string) (map[string]inter
 		return data, nil
 	}
 
-	return nil, errors.NewArtistError("Invalid JSON response", "")
+	return nil, errors.NewArtistError("Invalid JSON response", fmt.Sprintf("body=%v", resp.Body))
 }
 
-func (a *Artist) Follow(artistId string) error {
+func (a *artistService) Follow(artistId string) error {
 	return a.doFollow(artistId, "addToLibrary")
 }
 
-func (a *Artist) Unfollow(artistId string) error {
+func (a *artistService) Unfollow(artistId string) error {
 	return a.doFollow(artistId, "removeFromLibrary")
 }
 
-func (a *Artist) doFollow(artistId string, action string) error {
+func (a *artistService) doFollow(artistId string, action string) error {
 	if !a.login {
 		return fmt.Errorf("must be logged in")
 	}

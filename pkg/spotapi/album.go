@@ -66,5 +66,5 @@ func (a *PublicAlbum) GetAlbumInfo(limit int, offset int) (map[string]interface{
 		return data, nil
 	}
 
-	return nil, errors.NewAlbumError("Invalid JSON", "")
+	return nil, errors.NewAlbumError("Invalid JSON", fmt.Sprintf("body=%v type=%T", resp.Body, resp.Body))
 }

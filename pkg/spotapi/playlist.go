@@ -64,7 +64,7 @@ func (p *PublicPlaylist) GetPlaylistInfo(limit int, offset int) (map[string]inte
 		return data, nil
 	}
 
-	return nil, errors.NewPlaylistError("Invalid JSON", "")
+	return nil, errors.NewPlaylistError("Invalid JSON", fmt.Sprintf("body=%v type=%T", resp.Body, resp.Body))
 }
 
 type PrivatePlaylist struct {
