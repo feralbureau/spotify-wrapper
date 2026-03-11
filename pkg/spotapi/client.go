@@ -13,6 +13,7 @@ package spotapi
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/bogdanfinn/tls-client/profiles"
 	sphttp "github.com/spotapi/spotapi-go/internal/http"
@@ -121,6 +122,21 @@ func (c *Client) SearchArtists(query string, limit, offset int) ([]Artist, error
 			out = append(out, *a)
 		}
 	}
+	// Enrich each artist with followers/monthly-listeners via parallel GetArtist calls,
+	// since searchV2.artists items carry no stats.
+	var wg sync.WaitGroup
+	for i := range out {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			full, _, err := c.GetArtist(out[i].ID)
+			if err == nil && full != nil {
+				out[i].Followers = full.Followers
+				out[i].MonthlyListeners = full.MonthlyListeners
+			}
+		}(i)
+	}
+	wg.Wait()
 	return out, nil
 }
 
@@ -254,6 +270,10 @@ func stripPrefix(s, prefix string) string {
 // parseSearchAlbumItem parses a searchV2.albumsV2.items[].data map into an Album.
 func parseSearchAlbumItem(d map[string]interface{}) *Album {
 	if d == nil {
+		return nil
+	}
+	// Skip non-Album items (e.g. pre-releases, compilations with different __typename)
+	if tn, _ := d["__typename"].(string); tn != "" && tn != "Album" {
 		return nil
 	}
 	al := &Album{
