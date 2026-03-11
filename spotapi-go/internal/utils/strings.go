@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"regexp"
 	"strings"
 )
 
@@ -52,4 +53,55 @@ func RandomString(length int) (string, error) {
 		b[i] = charset[idx.Int64()]
 	}
 	return string(b), nil
+}
+
+func ExtractMappings(jsCode string) (map[string]string, map[string]string) {
+	pattern := `\{\d+:"[^"]+"(?:,\d+:"[^"]+")*\}`
+	re := regexp.MustCompile(pattern)
+	matches := re.FindAllString(jsCode, -1)
+
+	if len(matches) < 5 {
+		return nil, nil
+	}
+
+	// We need 4th and 5th matches based on Python implementation
+	m1 := parseMap(matches[3])
+	m2 := parseMap(matches[4])
+
+	return m1, m2
+}
+
+func parseMap(s string) map[string]string {
+	res := make(map[string]string)
+	s = strings.Trim(s, "{}")
+	parts := strings.Split(s, ",")
+	for _, p := range parts {
+		kv := strings.SplitN(p, ":", 2)
+		if len(kv) == 2 {
+			k := strings.Trim(kv[0], "\" ")
+			v := strings.Trim(kv[1], "\" ")
+			res[k] = v
+		}
+	}
+	return res
+}
+
+func CombineChunks(nameMap, hashMap map[string]string) []string {
+	var combined []string
+	for k, v := range nameMap {
+		if hv, ok := hashMap[k]; ok {
+			combined = append(combined, fmt.Sprintf("%s.%s.js", v, hv))
+		}
+	}
+	return combined
+}
+
+func ExtractJSLinks(htmlContent string) []string {
+	re := regexp.MustCompile(`<script[^>]*src="([^"]+\.js)"`)
+	matches := re.FindAllStringSubmatch(htmlContent, -1)
+	var links []string
+	for _, m := range matches {
+		links = append(links, m[1])
+	}
+	return links
 }

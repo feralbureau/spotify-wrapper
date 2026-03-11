@@ -35,10 +35,15 @@ func (s *Song) GetTrackInfo(trackId string) (map[string]interface{}, error) {
 		"uri": fmt.Sprintf("spotify:track:%s", trackId),
 	})
 
+	hash, err := s.Base.PartHash("getTrack")
+	if err != nil {
+		return nil, err
+	}
+
 	extensions, _ := json.Marshal(map[string]interface{}{
 		"persistedQuery": map[string]interface{}{
 			"version":    1,
-			"sha256Hash": s.Base.PartHash("getTrack"),
+			"sha256Hash": hash,
 		},
 	})
 
@@ -73,10 +78,15 @@ func (s *Song) QuerySongs(query string, limit int, offset int) (map[string]inter
 		"includeLocalConcertsField":     false,
 	})
 
+	hash, err := s.Base.PartHash("searchDesktop")
+	if err != nil {
+		return nil, err
+	}
+
 	extensions, _ := json.Marshal(map[string]interface{}{
 		"persistedQuery": map[string]interface{}{
 			"version":    1,
-			"sha256Hash": s.Base.PartHash("searchDesktop"),
+			"sha256Hash": hash,
 		},
 	})
 
@@ -109,6 +119,11 @@ func (s *Song) AddSongsToPlaylist(songIds []string) error {
 		uris[i] = fmt.Sprintf("spotify:track:%s", id)
 	}
 
+	hash, err := s.Base.PartHash("addToPlaylist")
+	if err != nil {
+		return err
+	}
+
 	payload := map[string]interface{}{
 		"variables": map[string]interface{}{
 			"uris":        uris,
@@ -119,12 +134,12 @@ func (s *Song) AddSongsToPlaylist(songIds []string) error {
 		"extensions": map[string]interface{}{
 			"persistedQuery": map[string]interface{}{
 				"version":    1,
-				"sha256Hash": s.Base.PartHash("addToPlaylist"),
+				"sha256Hash": hash,
 			},
 		},
 	}
 
-	_, err := s.Base.Client.Post(u, true, nil, payload)
+	_, err = s.Base.Client.Post(u, true, nil, payload)
 	if err != nil {
 		return errors.NewSongError("Could not add songs to playlist", err.Error())
 	}

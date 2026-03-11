@@ -38,10 +38,15 @@ func (p *PublicPlaylist) GetPlaylistInfo(limit int, offset int) (map[string]inte
 		"enableWatchFeedEntrypoint": false,
 	})
 
+	hash, err := p.Base.PartHash("fetchPlaylist")
+	if err != nil {
+		return nil, err
+	}
+
 	extensions, _ := json.Marshal(map[string]interface{}{
 		"persistedQuery": map[string]interface{}{
 			"version":    1,
-			"sha256Hash": p.Base.PartHash("fetchPlaylist"),
+			"sha256Hash": hash,
 		},
 	})
 
@@ -107,8 +112,11 @@ func (p *PrivatePlaylist) CreatePlaylist(name string) (string, error) {
 		return "", errors.NewPlaylistError("Could not stage create playlist", err.Error())
 	}
 
-	bodyStr := fmt.Sprintf("%v", resp.Body)
-	// Simplified extraction for POC
+	bodyStr, ok := resp.Body.(string)
+	if !ok {
+		return "", errors.NewPlaylistError("Could not stage create playlist", "Response is not a string")
+	}
+
 	if idx := strings.Index(bodyStr, "spotify:playlist:"); idx != -1 {
 		return bodyStr[idx:], nil
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/spotapi/spotapi-go/internal/errors"
 	"github.com/spotapi/spotapi-go/internal/totp"
+	"github.com/spotapi/spotapi-go/internal/utils"
 )
 
 type BaseClient struct {
@@ -67,6 +68,14 @@ func (bc *BaseClient) GetSession() error {
 	bodyStr, ok := resp.Body.(string)
 	if !ok {
 		return errors.NewBaseClientError("Could not get session", "Response body is not a string")
+	}
+
+	links := utils.ExtractJSLinks(bodyStr)
+	for _, link := range links {
+		if strings.Contains(link, "web-player/web-player") && strings.HasSuffix(link, ".js") {
+			bc.JsPack = link
+			break
+		}
 	}
 
 	// Extract appServerConfig
@@ -167,9 +176,11 @@ func (bc *BaseClient) GetClientToken() error {
 	return nil
 }
 
-func (bc *BaseClient) PartHash(name string) string {
+func (bc *BaseClient) PartHash(name string) (string, error) {
 	if bc.RawHashes == "" {
-		bc.GetSha256Hash()
+		if err := bc.GetSha256Hash(); err != nil {
+			return "", err
+		}
 	}
 
 	// Simplified hash extraction
@@ -177,20 +188,56 @@ func (bc *BaseClient) PartHash(name string) string {
 	if idx := strings.Index(bc.RawHashes, searchQuery); idx != -1 {
 		start := idx + len(searchQuery)
 		end := strings.Index(bc.RawHashes[start:], "\"")
-		return bc.RawHashes[start : start+end]
+		if end == -1 {
+			return "", nil
+		}
+		return bc.RawHashes[start : start+end], nil
 	}
 
 	searchMutation := fmt.Sprintf("\"%s\",\"mutation\",\"", name)
 	if idx := strings.Index(bc.RawHashes, searchMutation); idx != -1 {
 		start := idx + len(searchMutation)
 		end := strings.Index(bc.RawHashes[start:], "\"")
-		return bc.RawHashes[start : start+end]
+		if end == -1 {
+			return "", nil
+		}
+		return bc.RawHashes[start : start+end], nil
 	}
 
-	return ""
+	return "", nil
 }
 
 func (bc *BaseClient) GetSha256Hash() error {
-	// Logic to fetch and parse hashes from JS packs
+	if bc.JsPack == "" {
+		if err := bc.GetSession(); err != nil {
+			return err
+		}
+	}
+
+	if bc.JsPack == "" {
+		return errors.NewBaseClientError("Could not find JS pack", "")
+	}
+
+	resp, err := bc.Client.Get(bc.JsPack, false, nil)
+	if err != nil {
+		return errors.NewBaseClientError("Could not get general hashes", err.Error())
+	}
+
+	bc.RawHashes = fmt.Sprintf("%v", resp.Body)
+
+	m1, m2 := utils.ExtractMappings(bc.RawHashes)
+	if m1 == nil || m2 == nil {
+		return nil // Maybe some packs don't have it
+	}
+
+	urls := utils.CombineChunks(m2, m1)
+	for _, u := range urls {
+		fullUrl := "https://open.spotifycdn.com/cdn/build/web-player/" + u
+		resp, err := bc.Client.Get(fullUrl, false, nil)
+		if err == nil {
+			bc.RawHashes += fmt.Sprintf("%v", resp.Body)
+		}
+	}
+
 	return nil
 }

@@ -43,10 +43,15 @@ func (a *Artist) QueryArtists(query string, limit int, offset int) (map[string]i
 		"includePreReleases": false,
 	})
 
+	hash, err := a.Base.PartHash("searchArtists")
+	if err != nil {
+		return nil, err
+	}
+
 	extensions, _ := json.Marshal(map[string]interface{}{
 		"persistedQuery": map[string]interface{}{
 			"version":    1,
-			"sha256Hash": a.Base.PartHash("searchArtists"),
+			"sha256Hash": hash,
 		},
 	})
 
@@ -79,10 +84,15 @@ func (a *Artist) GetArtist(artistId string, localeCode string) (map[string]inter
 		"locale": localeCode,
 	})
 
+	hash, err := a.Base.PartHash("queryArtistOverview")
+	if err != nil {
+		return nil, err
+	}
+
 	extensions, _ := json.Marshal(map[string]interface{}{
 		"persistedQuery": map[string]interface{}{
 			"version":    1,
-			"sha256Hash": a.Base.PartHash("queryArtistOverview"),
+			"sha256Hash": hash,
 		},
 	})
 
@@ -122,6 +132,11 @@ func (a *Artist) doFollow(artistId string, action string) error {
 
 	u := "https://api-partner.spotify.com/pathfinder/v1/query"
 
+	hash, err := a.Base.PartHash(action)
+	if err != nil {
+		return err
+	}
+
 	payload := map[string]interface{}{
 		"variables": map[string]interface{}{
 			"uris": []string{fmt.Sprintf("spotify:artist:%s", artistId)},
@@ -130,7 +145,7 @@ func (a *Artist) doFollow(artistId string, action string) error {
 		"extensions": map[string]interface{}{
 			"persistedQuery": map[string]interface{}{
 				"version":    1,
-				"sha256Hash": a.Base.PartHash(action),
+				"sha256Hash": hash,
 			},
 		},
 	}

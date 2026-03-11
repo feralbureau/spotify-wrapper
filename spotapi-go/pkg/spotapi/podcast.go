@@ -37,10 +37,15 @@ func (p *Podcast) GetEpisode(episodeId string) (map[string]interface{}, error) {
 		"uri": fmt.Sprintf("spotify:episode:%s", episodeId),
 	})
 
+	hash, err := p.Base.PartHash("getEpisodeOrChapter")
+	if err != nil {
+		return nil, err
+	}
+
 	extensions, _ := json.Marshal(map[string]interface{}{
 		"persistedQuery": map[string]interface{}{
 			"version":    1,
-			"sha256Hash": p.Base.PartHash("getEpisodeOrChapter"),
+			"sha256Hash": hash,
 		},
 	})
 

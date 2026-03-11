@@ -40,10 +40,15 @@ func (a *PublicAlbum) GetAlbumInfo(limit int, offset int) (map[string]interface{
 		"limit":  limit,
 	})
 
+	hash, err := a.Base.PartHash("getAlbum")
+	if err != nil {
+		return nil, err
+	}
+
 	extensions, _ := json.Marshal(map[string]interface{}{
 		"persistedQuery": map[string]interface{}{
 			"version":    1,
-			"sha256Hash": a.Base.PartHash("getAlbum"),
+			"sha256Hash": hash,
 		},
 	})
 
