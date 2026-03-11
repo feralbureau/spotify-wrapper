@@ -57,7 +57,7 @@ func (c *Client) SearchTracks(query string, limit, offset int) ([]Track, error) 
 		return nil, fmt.Errorf("spotapi: SearchTracks: %w", err)
 	}
 
-	tracks, _ := digMap(raw, "data", "searchV2", "tracks")["items"].([]interface{})
+	tracks, _ := digMap(raw, "data", "searchV2", "tracksV2")["items"].([]interface{})
 	var out []Track
 	for _, item := range tracks {
 		im, ok := item.(map[string]interface{})
@@ -197,6 +197,10 @@ func parseArtistData(d map[string]interface{}) *Artist {
 		URI:  digStr(d, "uri"),
 		Name: digStr(d, "profile", "name"),
 	}
+	// artist search items have no bare "id" — extract from URI
+	if a.ID == "" {
+		a.ID = idFromURI(a.URI)
+	}
 	if vis := digMap(d, "visuals"); vis != nil {
 		if av := digMap(vis, "avatarImage"); av != nil {
 			a.AvatarURL = bestCover(av)
@@ -258,7 +262,7 @@ func parseAlbumUnion(d map[string]interface{}) *Album {
 			}
 		}
 	}
-	if tracks := digMap(d, "tracks"); tracks != nil {
+	if tracks := digMap(d, "tracksV2"); tracks != nil {
 		if tc, ok := tracks["totalCount"].(float64); ok {
 			al.TotalTracks = int(tc)
 		}

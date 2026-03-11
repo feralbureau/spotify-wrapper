@@ -138,20 +138,52 @@ func artistNames(artistsObj map[string]interface{}) []string {
 	return names
 }
 
-// parseTrackUnion converts a trackUnion map (from getTrack) into a Track.
+// idFromURI extracts the bare Spotify ID from a URI like "spotify:track:xxx" or "spotify:album:xxx".
+// Returns the input unchanged if it contains no colon.
+func idFromURI(uri string) string {
+	if uri == "" {
+		return ""
+	}
+	// find second colon
+	first := -1
+	for i := 0; i < len(uri); i++ {
+		if uri[i] == ':' {
+			if first == -1 {
+				first = i
+			} else {
+				return uri[i+1:]
+			}
+		}
+	}
+	if first >= 0 {
+		return uri[first+1:]
+	}
+	return uri
+}
+
+// parseTrackUnion converts any Spotify track map into a Track.
+// Handles both getTrack (trackUnion) and embedded track objects from
+// search results, album tracksV2 items, and playlist itemV2.data.
 func parseTrackUnion(t map[string]interface{}) *Track {
 	if t == nil {
 		return nil
 	}
 
 	tr := &Track{
-		ID:   digStr(t, "id"),
-		URI:  digStr(t, "uri"),
+		ID:    digStr(t, "id"),
+		URI:   digStr(t, "uri"),
 		Title: digStr(t, "name"),
 	}
 
-	// duration
+	// album/playlist track items have no bare "id" — extract from URI
+	if tr.ID == "" {
+		tr.ID = idFromURI(tr.URI)
+	}
+
+	// duration: getTrack uses "duration", playlist items use "trackDuration"
 	if dur := digMap(t, "duration"); dur != nil {
+		tr.DurationMs = int64(digFloat(dur, "totalMilliseconds"))
+	} else if dur := digMap(t, "trackDuration"); dur != nil {
 		tr.DurationMs = int64(digFloat(dur, "totalMilliseconds"))
 	}
 
@@ -179,7 +211,8 @@ func parseTrackUnion(t map[string]interface{}) *Track {
 		}
 	}
 
-	// firstArtist + otherArtists
+	// artists: getTrack uses firstArtist/otherArtists;
+	// search/album/playlist items use a flat "artists.items[]" object.
 	if fa := digMap(t, "firstArtist"); fa != nil {
 		names := artistNames(fa)
 		if len(names) > 0 {
@@ -190,10 +223,23 @@ func parseTrackUnion(t map[string]interface{}) *Track {
 	if oa := digMap(t, "otherArtists"); oa != nil {
 		tr.Artists = append(tr.Artists, artistNames(oa)...)
 	}
+	// flat "artists" object used in search + album + playlist track items
+	if tr.Artist == "" {
+		if ar := digMap(t, "artists"); ar != nil {
+			names := artistNames(ar)
+			if len(names) > 0 {
+				tr.Artist = names[0]
+				tr.Artists = append(tr.Artists, names...)
+			}
+		}
+	}
 
 	// albumOfTrack
 	if al := digMap(t, "albumOfTrack"); al != nil {
 		tr.AlbumID = digStr(al, "id")
+		if tr.AlbumID == "" {
+			tr.AlbumID = idFromURI(digStr(al, "uri"))
+		}
 		tr.AlbumTitle = digStr(al, "name")
 		if ca := digMap(al, "coverArt"); ca != nil {
 			tr.CoverURL = bestCover(ca)
