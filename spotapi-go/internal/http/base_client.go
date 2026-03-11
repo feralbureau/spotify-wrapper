@@ -64,14 +64,22 @@ func (bc *BaseClient) GetSession() error {
 		return errors.NewBaseClientError("Could not get session", err.Error())
 	}
 
-	bodyStr := fmt.Sprintf("%v", resp.Body)
+	bodyStr, ok := resp.Body.(string)
+	if !ok {
+		return errors.NewBaseClientError("Could not get session", "Response body is not a string")
+	}
 
 	// Extract appServerConfig
 	parts := strings.Split(bodyStr, "<script id=\"appServerConfig\" type=\"text/plain\">")
 	if len(parts) > 1 {
 		configPart := strings.Split(parts[1], "</script>")[0]
-		decoded, _ := base64.StdEncoding.DecodeString(configPart)
-		json.Unmarshal(decoded, &bc.ServerCfg)
+		decoded, err := base64.StdEncoding.DecodeString(configPart)
+		if err != nil {
+			return errors.NewBaseClientError("Could not decode appServerConfig", err.Error())
+		}
+		if err := json.Unmarshal(decoded, &bc.ServerCfg); err != nil {
+			return errors.NewBaseClientError("Could not unmarshal appServerConfig", err.Error())
+		}
 
 		if v, ok := bc.ServerCfg["clientVersion"].(string); ok {
 			bc.ClientVersion = v
