@@ -101,6 +101,12 @@ func (u *User) EditUserInfo(dump map[string]interface{}) error {
 		return errors.NewUserError("Captcha solver not set", "")
 	}
 
+	if u.csrfToken == "" {
+		if _, err := u.GetUserInfo(); err != nil {
+			return errors.NewUserError("Could not ensure CSRF token", err.Error())
+		}
+	}
+
 	captchaResponse, err := u.Login.Config.Solver.SolveCaptcha(
 		"https://www.spotify.com",
 		"6LfCVLAUAAAAALFwwRnnCJ12DalriUGbj8FW_J39",
