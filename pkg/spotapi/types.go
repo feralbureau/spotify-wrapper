@@ -24,6 +24,7 @@ type Artist struct {
 	Name             string
 	AvatarURL        string
 	MonthlyListeners int64
+	Followers        int64 // real follower count from stats.followers (0 in search results)
 	Biography        string
 }
 
