@@ -272,13 +272,21 @@ func parseAlbumUnion(d map[string]interface{}) *Album {
 				if trackObj == nil {
 					continue
 				}
-				at := AlbumTrack{
-					URI: digStr(trackObj, "uri"),
+				t := parseTrackUnion(trackObj)
+				if t == nil {
+					continue
 				}
-				if tn, ok := trackObj["trackNumber"].(float64); ok {
-					at.TrackNumber = int(tn)
+				// backfill album-level fields that may be absent inside album track items
+				if t.AlbumID == "" {
+					t.AlbumID = al.ID
 				}
-				al.Tracks = append(al.Tracks, at)
+				if t.AlbumTitle == "" {
+					t.AlbumTitle = al.Title
+				}
+				if t.CoverURL == "" {
+					t.CoverURL = al.CoverURL
+				}
+				al.Tracks = append(al.Tracks, *t)
 			}
 		}
 	}
