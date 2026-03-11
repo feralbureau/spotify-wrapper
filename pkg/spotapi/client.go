@@ -318,14 +318,14 @@ func parsePlaylistData(d map[string]interface{}) *Playlist {
 				if !ok {
 					continue
 				}
-				ref := PlaylistTrackRef{
-					AddedAt:   digStr(im, "addedAt", "isoString"),
-					AddedByID: digStr(im, "addedBy", "data", "uri"),
+				trackData := digMap(im, "itemV2", "data")
+				if trackData == nil {
+					continue
 				}
-				if trackData := digMap(im, "itemV2", "data"); trackData != nil {
-					ref.URI = digStr(trackData, "uri")
+				t := parseTrackUnion(trackData)
+				if t != nil && t.ID != "" {
+					pl.Tracks = append(pl.Tracks, *t)
 				}
-				pl.Tracks = append(pl.Tracks, ref)
 			}
 		}
 	}

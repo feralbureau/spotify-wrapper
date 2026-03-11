@@ -36,13 +36,7 @@ type Album struct {
 	CoverURL    string
 	ReleaseDate string // ISO 8601, e.g. "2020-03-27"
 	TotalTracks int
-	Tracks      []AlbumTrack
-}
-
-// AlbumTrack is a minimal track within an album (enough to feed GetTrack).
-type AlbumTrack struct {
-	URI         string
-	TrackNumber int
+	Tracks      []Track
 }
 
 // Playlist is a Spotify playlist with its track listing.
@@ -54,14 +48,7 @@ type Playlist struct {
 	Description string
 	CoverURL    string
 	TotalTracks int
-	Tracks      []PlaylistTrackRef
-}
-
-// PlaylistTrackRef is a minimal track entry inside a playlist.
-type PlaylistTrackRef struct {
-	URI       string
-	AddedAt   string
-	AddedByID string
+	Tracks      []Track
 }
 
 // ───── helpers for digging into raw map[string]interface{} responses ─────
