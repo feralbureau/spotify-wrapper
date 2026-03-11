@@ -17,7 +17,9 @@ func RandomB64String(length int) string {
 
 func RandomHexString(length int) string {
 	b := make([]byte, (length+1)/2)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand failed: " + err.Error())
+	}
 	return hex.EncodeToString(b)[:length]
 }
 
