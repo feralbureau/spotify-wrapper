@@ -33,13 +33,17 @@ func NewBaseClient(client *Client, language string) *BaseClient {
 	return bc
 }
 
-func (bc *BaseClient) AuthRule(headers map[string]string) map[string]string {
+func (bc *BaseClient) AuthRule(headers map[string]string) (map[string]string, error) {
 	if bc.ClientToken == "" {
-		bc.GetClientToken()
+		if err := bc.GetClientToken(); err != nil {
+			return nil, err
+		}
 	}
 
 	if bc.AccessToken == "" {
-		bc.GetSession()
+		if err := bc.GetSession(); err != nil {
+			return nil, err
+		}
 	}
 
 	if headers == nil {
@@ -51,7 +55,7 @@ func (bc *BaseClient) AuthRule(headers map[string]string) map[string]string {
 	headers["Spotify-App-Version"] = bc.ClientVersion
 	headers["Accept-Language"] = bc.Language
 
-	return headers
+	return headers, nil
 }
 
 func (bc *BaseClient) GetSession() error {
@@ -105,7 +109,9 @@ func (bc *BaseClient) GetAuthVars() error {
 
 func (bc *BaseClient) GetClientToken() error {
 	if bc.ClientId == "" || bc.DeviceId == "" || bc.ClientVersion == "" {
-		bc.GetSession()
+		if err := bc.GetSession(); err != nil {
+			return err
+		}
 	}
 
 	url := "https://clienttoken.spotify.com/v1/clienttoken"

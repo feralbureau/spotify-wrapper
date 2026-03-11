@@ -19,7 +19,7 @@ type Response struct {
 	Fail       bool
 }
 
-type AuthRule func(headers map[string]string) map[string]string
+type AuthRule func(headers map[string]string) (map[string]string, error)
 
 type Client struct {
 	HttpClient     tls_client.HttpClient
@@ -51,7 +51,11 @@ func NewClient(profile profiles.ClientProfile, proxy string, autoRetries int) (*
 
 func (c *Client) Request(method, url string, authenticate bool, headers map[string]string, body interface{}) (*Response, error) {
 	if authenticate && c.Authenticate != nil {
-		headers = c.Authenticate(headers)
+		var err error
+		headers, err = c.Authenticate(headers)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var reqBody string
