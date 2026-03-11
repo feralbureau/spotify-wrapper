@@ -114,7 +114,7 @@ func TestLiveDiagSession(t *testing.T) {
 	}
 	t.Logf("ClientToken   : %.40s…", bc.ClientToken)
 
-	// Check persisted query hashes
+	// check persisted query hashes
 	for _, name := range []string{"searchDesktop", "getTrack", "searchArtists", "queryArtistOverview", "getAlbum", "fetchPlaylist"} {
 		h, err := bc.PartHash(name)
 		t.Logf("PartHash(%-25s) => %q  err=%v", name, h, err)
@@ -241,7 +241,7 @@ func TestLivePublicAlbumInfo_LucyBedroque(t *testing.T) {
 	registerLiveTest(t)
 	client := newLiveClient(t)
 
-	// Lucy Bedroque / glittr – 'collected' album
+	// lucy bedroque / glittr – 'collected' album
 	album := NewPublicAlbum("6vAMeQMOcNEPHYXJRmGp73", client, "en")
 	data, err := album.GetAlbumInfo(50, 0)
 	if err != nil {

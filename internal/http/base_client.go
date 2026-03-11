@@ -87,21 +87,20 @@ func (bc *BaseClient) GetSession() error {
 	}
 
 	links := utils.ExtractJSLinks(bodyStr)
-	// isJunk returns true for tracking/analytics scripts that never contain
-	// Spotify GraphQL hashes (GTM, retargeting pixels, vendor bundles).
+	// isJunk skips tracking scripts that never carry spotify graphql hashes.
 	isJunk := func(link string) bool {
 		return strings.Contains(link, "vendor~") ||
 			strings.Contains(link, "gtm.") ||
 			strings.Contains(link, "retargeting")
 	}
-	// Pass 1: exact historic desktop pattern
+	// pass 1: exact historic desktop pattern
 	for _, link := range links {
 		if strings.Contains(link, "web-player/web-player") && !isJunk(link) {
 			bc.JsPack = link
 			break
 		}
 	}
-	// Pass 2: any spotifycdn.com web-player bundle
+	// pass 2: any spotifycdn.com web-player bundle
 	if bc.JsPack == "" {
 		for _, link := range links {
 			if strings.Contains(link, "spotifycdn.com") && strings.Contains(link, "web-player") && !isJunk(link) {
@@ -110,7 +109,7 @@ func (bc *BaseClient) GetSession() error {
 			}
 		}
 	}
-	// Pass 3: any spotifycdn.com JS that is not junk
+	// pass 3: any spotifycdn.com js that is not junk
 	if bc.JsPack == "" {
 		for _, link := range links {
 			if strings.Contains(link, "spotifycdn.com") && !isJunk(link) {
@@ -120,7 +119,7 @@ func (bc *BaseClient) GetSession() error {
 		}
 	}
 
-	// Save all non-junk bundles for hash search
+	// store all non-junk bundles for hash search
 	bc.AllJsPacks = bc.AllJsPacks[:0]
 	for _, link := range links {
 		if !isJunk(link) && link != bc.JsPack {
@@ -128,7 +127,7 @@ func (bc *BaseClient) GetSession() error {
 		}
 	}
 
-	// Extract appServerConfig
+	// extract appServerConfig
 	parts := strings.Split(bodyStr, "<script id=\"appServerConfig\" type=\"text/plain\">")
 	if len(parts) > 1 {
 		configPart := strings.Split(parts[1], "</script>")[0]
@@ -149,7 +148,7 @@ func (bc *BaseClient) GetSession() error {
 		return errors.NewBaseClientError("Could not get session", "appServerConfig script tag not found")
 	}
 
-	// Device ID from cookie
+	// device id from cookie
 	foundSpT := false
 	for _, cookie := range resp.Raw.Cookies() {
 		if cookie.Name == "sp_t" {
@@ -247,7 +246,7 @@ func (bc *BaseClient) PartHash(name string) (string, error) {
 		}
 	}
 
-	// Simplified hash extraction
+	// simplified hash extraction
 	searchQuery := fmt.Sprintf("\"%s\",\"query\",\"", name)
 	if idx := strings.Index(bc.RawHashes, searchQuery); idx != -1 {
 		start := idx + len(searchQuery)
@@ -293,7 +292,7 @@ func (bc *BaseClient) GetSha256Hash() error {
 	}
 	bc.RawHashes = bodyStr
 
-	// Also load any other known bundles (e.g. vendor bundle) to widen hash search
+	// also load any other known bundles (e.g. vendor bundle) to widen hash search
 	for _, extra := range bc.AllJsPacks {
 		if eResp, eErr := bc.Client.Get(extra, false, nil); eErr == nil {
 			if bStr, ok := eResp.Body.(string); ok {
@@ -302,7 +301,7 @@ func (bc *BaseClient) GetSha256Hash() error {
 		}
 	}
 
-	// Derive base URL from the JsPack path (e.g. mobile-web-player/ or web-player/)
+	// derive base url from the js pack path (e.g. mobile-web-player/ or web-player/)
 	baseURL := "https://open.spotifycdn.com/cdn/build/web-player/"
 	if idx := strings.LastIndex(bc.JsPack, "/"); idx != -1 {
 		baseURL = bc.JsPack[:idx+1]
@@ -310,7 +309,7 @@ func (bc *BaseClient) GetSha256Hash() error {
 
 	m1, m2 := utils.ExtractMappings(bc.RawHashes)
 	if m1 == nil || m2 == nil {
-		return nil // Some packs don't carry chunk maps inline
+		return nil // some packs don't carry chunk maps inline
 	}
 
 	urls := utils.CombineChunks(m2, m1)

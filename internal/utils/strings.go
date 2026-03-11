@@ -64,7 +64,7 @@ func ExtractMappings(jsCode string) (map[string]string, map[string]string) {
 		return nil, nil
 	}
 
-	// We need 4th and 5th matches based on Python implementation
+	// need the fourth and fifth matches based on the python implementation
 	m1 := parseMap(matches[3])
 	m2 := parseMap(matches[4])
 

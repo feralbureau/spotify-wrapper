@@ -130,7 +130,7 @@ func (u *User) EditUserInfo(dump map[string]interface{}) error {
 			"country":   profileDump["country"],
 		},
 		"recaptcha_token": captchaResponse,
-		"client_nonce":    "", // Use utils.RandomNonce when implemented
+		"client_nonce":    "", // use utils.RandomNonce when implemented
 		"callback_url":    "https://www.spotify.com/account/profile/challenge",
 		"client_info":     map[string]interface{}{"locale": "en_US", "capabilities": []int{1}},
 	}

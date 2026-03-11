@@ -1,13 +1,12 @@
-// Package spotapi provides a high-level Go client for the Spotify private
-// partner API. It requires no OAuth credentials — authentication is done via
-// the same session / TOTP flow that the Spotify web player uses.
+// spotapi provides a high-level go client for spotify's private partner api.
+// it handles session/totp auth so oauth credentials are optional.
 //
-// Quick start:
+// quick start:
 //
 //	c, err := spotapi.NewClient("en")
 //	tracks, err := c.SearchTracks("Lucy Bedroque", 10, 0)
 //
-// Module path:  github.com/spotapi/spotapi-go
+// module path: github.com/spotapi/spotapi-go
 package spotapi
 
 import (
@@ -19,9 +18,7 @@ import (
 	sphttp "github.com/spotapi/spotapi-go/internal/http"
 )
 
-// Client is the top-level handle for all Spotify API operations.
-// Create one with NewClient and reuse it — the underlying TLS session and
-// access tokens are cached and refreshed automatically.
+// client wraps shared spotapi state so the tls session and tokens stay cached.
 type Client struct {
 	lang   string
 	http   *sphttp.Client
@@ -29,9 +26,7 @@ type Client struct {
 	artist *artistService
 }
 
-// NewClient creates a ready-to-use Client with Chrome 120 TLS fingerprint.
-// lang is the BCP-47 language code for results (e.g. "en", "ru"); pass ""
-// to default to "en".
+// newclient builds a chrome 120 tls client; lang defaults to "en" when empty.
 func NewClient(lang string) (*Client, error) {
 	if lang == "" {
 		lang = "en"
@@ -51,7 +46,7 @@ func NewClient(lang string) (*Client, error) {
 
 // ───── Tracks ─────────────────────────────────────────────────────────────
 
-// SearchTracks returns up to limit tracks matching query, starting at offset.
+// searchtracks returns up to limit tracks for a query starting at offset.
 func (c *Client) SearchTracks(query string, limit, offset int) ([]Track, error) {
 	raw, err := c.song.QuerySongs(query, limit, offset)
 	if err != nil {
@@ -78,9 +73,7 @@ func (c *Client) SearchTracks(query string, limit, offset int) ([]Track, error) 
 	return out, nil
 }
 
-// GetTrack returns full metadata for a single track by its Spotify ID.
-// Accepts bare IDs ("5nujrmhLynf4yMoMtj8AQF") or full URIs
-// ("spotify:track:5nujrmhLynf4yMoMtj8AQF").
+// gettrack returns metadata for a single spotify id and accepts bare ids or full uris.
 func (c *Client) GetTrack(id string) (*Track, error) {
 	id = stripPrefix(id, "spotify:track:")
 	raw, err := c.song.GetTrackInfo(id)
@@ -100,7 +93,7 @@ func (c *Client) GetTrack(id string) (*Track, error) {
 
 // ───── Artists ────────────────────────────────────────────────────────────
 
-// SearchArtists returns up to limit artists matching query.
+// searchartists returns up to limit artists for the query.
 func (c *Client) SearchArtists(query string, limit, offset int) ([]Artist, error) {
 	raw, err := c.artist.QueryArtists(query, limit, offset)
 	if err != nil {
@@ -122,7 +115,7 @@ func (c *Client) SearchArtists(query string, limit, offset int) ([]Artist, error
 			out = append(out, *a)
 		}
 	}
-	// Enrich each artist with followers/monthly-listeners via parallel GetArtist calls,
+	// enrich each artist with followers/monthly-listeners via parallel GetArtist calls,
 	// since searchV2.artists items carry no stats.
 	var wg sync.WaitGroup
 	for i := range out {
@@ -140,7 +133,7 @@ func (c *Client) SearchArtists(query string, limit, offset int) ([]Artist, error
 	return out, nil
 }
 
-// GetArtist returns a full artist profile and their discography albums by Spotify ID or URI.
+// getartist fetches the artist profile and discography for a spotify id.
 func (c *Client) GetArtist(id string) (*Artist, []Album, error) {
 	id = stripPrefix(id, "spotify:artist:")
 	raw, err := c.artist.GetArtist(id, c.lang)
@@ -182,8 +175,7 @@ func (c *Client) GetArtist(id string) (*Artist, []Album, error) {
 
 // ───── Albums ─────────────────────────────────────────────────────────────
 
-// GetAlbum returns album metadata and up to limit tracks starting at offset.
-// Accepts bare album IDs or Spotify URIs/URLs.
+// getalbum returns album metadata and up to limit tracks starting at offset; accepts bare album ids or spotify uris/urls.
 func (c *Client) GetAlbum(id string, limit, offset int) (*Album, error) {
 	id = stripPrefix(id, "spotify:album:")
 	pa := NewPublicAlbum(id, c.http, c.lang)
@@ -200,8 +192,7 @@ func (c *Client) GetAlbum(id string, limit, offset int) (*Album, error) {
 
 // ───── Playlists ──────────────────────────────────────────────────────────
 
-// SearchAlbums returns up to limit albums matching query.
-// TotalTracks is not populated (search results carry no track count; call GetAlbum for full detail).
+// searchalbums returns up to limit albums for the query; totalTracks is not populated (call getalbum for full detail).
 func (c *Client) SearchAlbums(query string, limit, offset int) ([]Album, error) {
 	raw, err := c.song.QuerySongs(query, limit, offset)
 	if err != nil {
@@ -222,8 +213,7 @@ func (c *Client) SearchAlbums(query string, limit, offset int) ([]Album, error) 
 	return out, nil
 }
 
-// SearchPlaylists returns up to limit playlists matching query.
-// TotalTracks is not populated (search results carry no track count; call GetPlaylist for full detail).
+// searchplaylists returns up to limit playlists for the query; totalTracks is not populated (call getplaylist for full detail).
 func (c *Client) SearchPlaylists(query string, limit, offset int) ([]Playlist, error) {
 	raw, err := c.song.QuerySongs(query, limit, offset)
 	if err != nil {
@@ -244,8 +234,7 @@ func (c *Client) SearchPlaylists(query string, limit, offset int) ([]Playlist, e
 	return out, nil
 }
 
-// GetPlaylist returns playlist metadata and up to limit tracks starting at offset.
-// Accepts bare playlist IDs, Spotify URIs, or open.spotify.com URLs.
+// getplaylist returns playlist metadata and up to limit tracks starting at offset; accepts bare playlist ids, spotify uris, or open.spotify.com urls.
 func (c *Client) GetPlaylist(id string, limit, offset int) (*Playlist, error) {
 	id = stripPrefix(id, "spotify:playlist:")
 	pp := NewPublicPlaylist(id, c.http, c.lang)
@@ -274,7 +263,7 @@ func parseSearchAlbumItem(d map[string]interface{}) *Album {
 	if d == nil {
 		return nil
 	}
-	// Skip non-Album items (e.g. pre-releases, compilations with different __typename)
+	// skip non-album items (e.g. pre-releases, compilations with different __typename)
 	if tn, _ := d["__typename"].(string); tn != "" && tn != "Album" {
 		return nil
 	}
@@ -375,7 +364,7 @@ func parseArtistData(d map[string]interface{}) *Artist {
 		URI:  digStr(d, "uri"),
 		Name: digStr(d, "profile", "name"),
 	}
-	// artist search items have no bare "id" — extract from URI
+	// artist search items have no bare "id" — extract from uri
 	if a.ID == "" {
 		a.ID = idFromURI(a.URI)
 	}

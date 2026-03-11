@@ -1,13 +1,13 @@
 package spotapi
 
-// Track is a single Spotify track with all fields needed by bedrock-api.
+// track holds spotify track fields needed by bedrock-api.
 type Track struct {
-	ID          string   // bare Spotify ID, e.g. "5nujrmhLynf4yMoMtj8AQF"
+	ID          string   // bare spotify id, e.g. "5nujrmhLynf4yMoMtj8AQF"
 	URI         string   // "spotify:track:5nujrmhLynf4yMoMtj8AQF"
 	Title       string
 	Artist      string   // primary artist name
 	Artists     []string // all artist names
-	AlbumID     string   // bare album ID
+	AlbumID     string   // bare album id
 	AlbumTitle  string
 	CoverURL    string // largest available cover image
 	PreviewURL  string // 30-second preview (may be empty)
@@ -17,7 +17,7 @@ type Track struct {
 	Explicit    bool
 }
 
-// Artist is a Spotify artist profile.
+// artist captures a spotify artist profile.
 type Artist struct {
 	ID               string
 	URI              string
@@ -28,19 +28,19 @@ type Artist struct {
 	Biography        string
 }
 
-// Album is a Spotify album with its track listing.
+// album represents a spotify release with its tracks.
 type Album struct {
 	ID          string
 	URI         string
 	Title       string
 	Artist      string
 	CoverURL    string
-	ReleaseDate string // ISO 8601, e.g. "2020-03-27"
+	ReleaseDate string // iso 8601, e.g. "2020-03-27"
 	TotalTracks int
 	Tracks      []Track
 }
 
-// Playlist is a Spotify playlist with its track listing.
+// playlist represents a spotify playlist with its tracks.
 type Playlist struct {
 	ID          string
 	URI         string
@@ -139,8 +139,8 @@ func artistNames(artistsObj map[string]interface{}) []string {
 	return names
 }
 
-// idFromURI extracts the bare Spotify ID from a URI like "spotify:track:xxx" or "spotify:album:xxx".
-// Returns the input unchanged if it contains no colon.
+// idFromURI extracts the bare spotify id from a uri like "spotify:track:xxx" or "spotify:album:xxx".
+// returns the input unchanged if it contains no colon.
 func idFromURI(uri string) string {
 	if uri == "" {
 		return ""
@@ -163,8 +163,8 @@ func idFromURI(uri string) string {
 }
 
 // parseTrackUnion converts any Spotify track map into a Track.
-// Handles both getTrack (trackUnion) and embedded track objects from
-// search results, album tracksV2 items, and playlist itemV2.data.
+// handles both gettrack (trackunion) and embedded track objects from
+// search results, album tracksv2 items, and playlist itemv2.data.
 func parseTrackUnion(t map[string]interface{}) *Track {
 	if t == nil {
 		return nil
@@ -176,7 +176,7 @@ func parseTrackUnion(t map[string]interface{}) *Track {
 		Title: digStr(t, "name"),
 	}
 
-	// album/playlist track items have no bare "id" — extract from URI
+	// album/playlist track items have no bare "id" — extract from uri
 	if tr.ID == "" {
 		tr.ID = idFromURI(tr.URI)
 	}
