@@ -90,17 +90,27 @@ func (bc *BaseClient) GetSession() error {
 			return errors.NewBaseClientError("Could not unmarshal appServerConfig", err.Error())
 		}
 
-		if v, ok := bc.ServerCfg["clientVersion"].(string); ok {
-			bc.ClientVersion = v
+		v, ok := bc.ServerCfg["clientVersion"].(string)
+		if !ok || v == "" {
+			return errors.NewBaseClientError("Could not get session", "clientVersion is missing or invalid in appServerConfig")
 		}
+		bc.ClientVersion = v
+	} else {
+		return errors.NewBaseClientError("Could not get session", "appServerConfig script tag not found")
 	}
 
 	// Device ID from cookie
+	foundSpT := false
 	for _, cookie := range resp.Raw.Cookies() {
 		if cookie.Name == "sp_t" {
 			bc.DeviceId = cookie.Value
+			foundSpT = true
 			break
 		}
+	}
+
+	if !foundSpT || bc.DeviceId == "" {
+		return errors.NewBaseClientError("Could not get session", "sp_t cookie (DeviceId) is missing")
 	}
 
 	return bc.GetAuthVars()
@@ -119,8 +129,8 @@ func (bc *BaseClient) GetAuthVars() error {
 		if data, ok := resp.Body.(map[string]interface{}); ok {
 			at, ok1 := data["accessToken"].(string)
 			ci, ok2 := data["clientId"].(string)
-			if !ok1 || !ok2 {
-				return errors.NewBaseClientError("Could not get session auth tokens", "Invalid response format")
+			if !ok1 || !ok2 || at == "" || ci == "" {
+				return errors.NewBaseClientError("Could not get session auth tokens", "Invalid response format or empty tokens")
 			}
 			bc.AccessToken = at
 			bc.ClientId = ci
@@ -162,8 +172,8 @@ func (bc *BaseClient) GetClientToken() error {
 	if data, ok := resp.Body.(map[string]interface{}); ok {
 		if gt, ok := data["granted_token"].(map[string]interface{}); ok {
 			token, ok := gt["token"].(string)
-			if !ok {
-				return errors.NewBaseClientError("Could not get client token", "Token is not a string")
+			if !ok || token == "" {
+				return errors.NewBaseClientError("Could not get client token", "Token is missing or empty")
 			}
 			bc.ClientToken = token
 		} else {
@@ -188,7 +198,7 @@ func (bc *BaseClient) PartHash(name string) (string, error) {
 	if idx := strings.Index(bc.RawHashes, searchQuery); idx != -1 {
 		start := idx + len(searchQuery)
 		end := strings.Index(bc.RawHashes[start:], "\"")
-		if end == -1 {
+		if end == -1 || start+end > len(bc.RawHashes) {
 			return "", nil
 		}
 		return bc.RawHashes[start : start+end], nil
@@ -198,7 +208,7 @@ func (bc *BaseClient) PartHash(name string) (string, error) {
 	if idx := strings.Index(bc.RawHashes, searchMutation); idx != -1 {
 		start := idx + len(searchMutation)
 		end := strings.Index(bc.RawHashes[start:], "\"")
-		if end == -1 {
+		if end == -1 || start+end > len(bc.RawHashes) {
 			return "", nil
 		}
 		return bc.RawHashes[start : start+end], nil
@@ -223,7 +233,11 @@ func (bc *BaseClient) GetSha256Hash() error {
 		return errors.NewBaseClientError("Could not get general hashes", err.Error())
 	}
 
-	bc.RawHashes = fmt.Sprintf("%v", resp.Body)
+	bodyStr, ok := resp.Body.(string)
+	if !ok {
+		return errors.NewBaseClientError("Could not get general hashes", "JS pack response body is not a string")
+	}
+	bc.RawHashes = bodyStr
 
 	m1, m2 := utils.ExtractMappings(bc.RawHashes)
 	if m1 == nil || m2 == nil {
@@ -235,7 +249,9 @@ func (bc *BaseClient) GetSha256Hash() error {
 		fullUrl := "https://open.spotifycdn.com/cdn/build/web-player/" + u
 		resp, err := bc.Client.Get(fullUrl, false, nil)
 		if err == nil {
-			bc.RawHashes += fmt.Sprintf("%v", resp.Body)
+			if bStr, ok := resp.Body.(string); ok {
+				bc.RawHashes += bStr
+			}
 		}
 	}
 
