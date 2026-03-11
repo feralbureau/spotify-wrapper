@@ -42,8 +42,16 @@ func (l *Login) GetSession() error {
 		}
 	}
 
-	bodyStr := fmt.Sprintf("%v", resp.Body)
-	l.FlowId, _ = utils.ParseJsonString(bodyStr, "flowCtx")
+	bodyStr, ok := resp.Body.(string)
+	if !ok {
+		return errors.NewLoginError("Could not get session", "Response body is not a string")
+	}
+
+	flowId, err := utils.ParseJsonString(bodyStr, "flowCtx")
+	if err != nil {
+		return errors.NewLoginError("Could not parse flowCtx", err.Error())
+	}
+	l.FlowId = flowId
 
 	return nil
 }
