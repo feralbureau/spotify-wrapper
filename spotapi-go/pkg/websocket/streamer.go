@@ -18,6 +18,7 @@ type WebsocketStreamer struct {
 	Conn         *websocket.Conn
 	ConnectionId string
 	mu           sync.Mutex
+	done         chan struct{}
 }
 
 func NewWebsocketStreamer(l *spotapi.Login) (*WebsocketStreamer, error) {
@@ -46,6 +47,7 @@ func NewWebsocketStreamer(l *spotapi.Login) (*WebsocketStreamer, error) {
 		Base:     bc,
 		DeviceId: deviceId,
 		Conn:     conn,
+		done:     make(chan struct{}),
 	}
 
 	s.ConnectionId, err = s.getInitPacket()
@@ -83,10 +85,28 @@ func (s *WebsocketStreamer) getInitPacket() (string, error) {
 func (s *WebsocketStreamer) keepAlive() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-	for range ticker.C {
-		s.mu.Lock()
-		s.Conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"ping"}`))
-		s.mu.Unlock()
+	for {
+		select {
+		case <-ticker.C:
+			s.mu.Lock()
+			s.Conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"ping"}`))
+			s.mu.Unlock()
+		case <-s.done:
+			return
+		}
+	}
+}
+
+func (s *WebsocketStreamer) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	select {
+	case <-s.done:
+		// already closed
+		return nil
+	default:
+		close(s.done)
+		return s.Conn.Close()
 	}
 }
 
