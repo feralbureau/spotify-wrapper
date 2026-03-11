@@ -37,7 +37,12 @@ func (u *User) HasPremium() (bool, error) {
 		return false, fmt.Errorf("invalid plan data")
 	}
 
-	return planData["name"] != "Spotify Free", nil
+	name, ok := planData["name"].(string)
+	if !ok {
+		return false, fmt.Errorf("plan name is not a string")
+	}
+
+	return name != "Spotify Free", nil
 }
 
 func (u *User) Username() (string, error) {
@@ -54,7 +59,12 @@ func (u *User) Username() (string, error) {
 		return "", fmt.Errorf("invalid user info")
 	}
 
-	return profile["username"].(string), nil
+	username, ok := profile["username"].(string)
+	if !ok {
+		return "", fmt.Errorf("username is not a string")
+	}
+
+	return username, nil
 }
 
 func (u *User) GetPlanInfo() (map[string]interface{}, error) {

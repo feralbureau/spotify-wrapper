@@ -108,8 +108,15 @@ func (bc *BaseClient) GetAuthVars() error {
 		}
 
 		if data, ok := resp.Body.(map[string]interface{}); ok {
-			bc.AccessToken = data["accessToken"].(string)
-			bc.ClientId = data["clientId"].(string)
+			at, ok1 := data["accessToken"].(string)
+			ci, ok2 := data["clientId"].(string)
+			if !ok1 || !ok2 {
+				return errors.NewBaseClientError("Could not get session auth tokens", "Invalid response format")
+			}
+			bc.AccessToken = at
+			bc.ClientId = ci
+		} else {
+			return errors.NewBaseClientError("Could not get session auth tokens", "Response is not a map")
 		}
 	}
 	return nil
@@ -145,8 +152,16 @@ func (bc *BaseClient) GetClientToken() error {
 
 	if data, ok := resp.Body.(map[string]interface{}); ok {
 		if gt, ok := data["granted_token"].(map[string]interface{}); ok {
-			bc.ClientToken = gt["token"].(string)
+			token, ok := gt["token"].(string)
+			if !ok {
+				return errors.NewBaseClientError("Could not get client token", "Token is not a string")
+			}
+			bc.ClientToken = token
+		} else {
+			return errors.NewBaseClientError("Could not get client token", "granted_token is missing or invalid")
 		}
+	} else {
+		return errors.NewBaseClientError("Could not get client token", "Response is not a map")
 	}
 
 	return nil
