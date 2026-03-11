@@ -201,8 +201,7 @@ func (c *Client) GetAlbum(id string, limit, offset int) (*Album, error) {
 // ───── Playlists ──────────────────────────────────────────────────────────
 
 // SearchAlbums returns up to limit albums matching query.
-// TotalTracks is populated via parallel GetAlbum calls since search results
-// do not include track counts.
+// TotalTracks is not populated (search results carry no track count; call GetAlbum for full detail).
 func (c *Client) SearchAlbums(query string, limit, offset int) ([]Album, error) {
 	raw, err := c.song.QuerySongs(query, limit, offset)
 	if err != nil {
@@ -220,25 +219,11 @@ func (c *Client) SearchAlbums(query string, limit, offset int) ([]Album, error) 
 			out = append(out, *al)
 		}
 	}
-	// Enrich with TotalTracks via parallel GetAlbum calls (search results carry no track count).
-	var wg sync.WaitGroup
-	for i := range out {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			full, err := c.GetAlbum(out[i].ID, 1, 0)
-			if err == nil && full != nil {
-				out[i].TotalTracks = full.TotalTracks
-			}
-		}(i)
-	}
-	wg.Wait()
 	return out, nil
 }
 
 // SearchPlaylists returns up to limit playlists matching query.
-// TotalTracks is populated via parallel GetPlaylist calls since search results
-// do not include track counts.
+// TotalTracks is not populated (search results carry no track count; call GetPlaylist for full detail).
 func (c *Client) SearchPlaylists(query string, limit, offset int) ([]Playlist, error) {
 	raw, err := c.song.QuerySongs(query, limit, offset)
 	if err != nil {
@@ -256,19 +241,6 @@ func (c *Client) SearchPlaylists(query string, limit, offset int) ([]Playlist, e
 			out = append(out, *pl)
 		}
 	}
-	// Enrich with TotalTracks via parallel GetPlaylist calls (search results carry no track count).
-	var wg sync.WaitGroup
-	for i := range out {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			full, err := c.GetPlaylist(out[i].ID, 1, 0)
-			if err == nil && full != nil {
-				out[i].TotalTracks = full.TotalTracks
-			}
-		}(i)
-	}
-	wg.Wait()
 	return out, nil
 }
 
