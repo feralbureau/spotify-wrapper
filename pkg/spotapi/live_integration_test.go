@@ -266,6 +266,44 @@ func TestLivePublicPlaylistInfo(t *testing.T) {
 	t.Logf("=== PUBLIC PLAYLIST INFO ===\n%s", pretty(data))
 }
 
+func TestLiveSearchStructure(t *testing.T) {
+	registerLiveTest(t)
+	client := newLiveClient(t)
+	song := NewSong(nil, client, "en")
+
+	data, err := song.QuerySongs("lucy bedroque", 3, 0)
+	if err != nil {
+		t.Fatalf("QuerySongs: %v", err)
+	}
+	sv2, ok := data["data"].(map[string]interface{})["searchV2"].(map[string]interface{})
+	if !ok {
+		t.Fatal("no searchV2")
+	}
+	t.Logf("searchV2 keys: %v", func() []string {
+		var ks []string
+		for k := range sv2 {
+			ks = append(ks, k)
+		}
+		return ks
+	}())
+	// playlists
+	if plRaw, ok2 := sv2["playlists"].(map[string]interface{}); ok2 {
+		items, _ := plRaw["items"].([]interface{})
+		if len(items) > 0 {
+			t.Logf("=== playlist item[0] ===\n%s", pretty(items[0]))
+		} else {
+			t.Log("no playlist items")
+		}
+	}
+	// albumsV2
+	if alRaw, ok2 := sv2["albumsV2"].(map[string]interface{}); ok2 {
+		items, _ := alRaw["items"].([]interface{})
+		if len(items) > 0 {
+			t.Logf("=== albumsV2 item[0] ===\n%s", pretty(items[0]))
+		}
+	}
+}
+
 func TestLiveSummary(t *testing.T) {
 	liveTestMu.Lock()
 	results := append([]liveTestResult(nil), liveTestResults...)
