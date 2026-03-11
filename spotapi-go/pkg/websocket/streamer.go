@@ -26,15 +26,14 @@ func NewWebsocketStreamer(l *spotapi.Login) (*WebsocketStreamer, error) {
 	}
 
 	bc := http.NewBaseClient(l.Config.Client, "en")
-	bc := http.NewBaseClient(l.Config.Client, "en")
-	if err := bc.GetSession(); err != nil {
-		return nil, fmt.Errorf("failed to get session: %w", err)
-	}
-	if err := bc.GetClientToken(); err != nil {
-		return nil, fmt.Errorf("failed to get client token: %w", err)
+	bc.GetSession()
+	bc.GetClientToken()
+
+	deviceId, err := utils.RandomHexString(32)
+	if err != nil {
+		return nil, err
 	}
 
-	deviceId := utils.RandomHexString(32)
 	uri := fmt.Sprintf("wss://dealer.spotify.com/?access_token=%s", bc.AccessToken)
 
 	dialer := websocket.Dialer{}

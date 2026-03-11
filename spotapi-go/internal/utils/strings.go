@@ -9,18 +9,20 @@ import (
 	"strings"
 )
 
-func RandomB64String(length int) string {
+func RandomB64String(length int) (string, error) {
 	b := make([]byte, length)
-	rand.Read(b)
-	return base64.StdEncoding.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("RandomB64String failed: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(b), nil
 }
 
-func RandomHexString(length int) string {
+func RandomHexString(length int) (string, error) {
 	b := make([]byte, (length+1)/2)
 	if _, err := rand.Read(b); err != nil {
-		panic("crypto/rand failed: " + err.Error())
+		return "", fmt.Errorf("RandomHexString failed: %w", err)
 	}
-	return hex.EncodeToString(b)[:length]
+	return hex.EncodeToString(b)[:length], nil
 }
 
 func ParseJsonString(b, s string) (string, error) {
@@ -39,12 +41,15 @@ func ParseJsonString(b, s string) (string, error) {
 	return b[valueStartIndex : valueStartIndex+valueEndIndex], nil
 }
 
-func RandomString(length int) string {
+func RandomString(length int) (string, error) {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	b := make([]byte, length)
 	for i := range b {
-		idx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			return "", fmt.Errorf("RandomString failed: %w", err)
+		}
 		b[i] = charset[idx.Int64()]
 	}
-	return string(b)
+	return string(b), nil
 }

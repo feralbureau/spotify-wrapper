@@ -108,20 +108,9 @@ func (p *PrivatePlaylist) CreatePlaylist(name string) (string, error) {
 	}
 
 	bodyStr := fmt.Sprintf("%v", resp.Body)
-	// Extract just the playlist URI
-	prefix := "spotify:playlist:"
-	if idx := strings.Index(bodyStr, prefix); idx != -1 {
-		start := idx + len(prefix)
-		// Find the end of the ID (typically alphanumeric, 22 chars)
-		end := start
-		for end < len(bodyStr) && (bodyStr[end] >= 'a' && bodyStr[end] <= 'z' ||
-			bodyStr[end] >= 'A' && bodyStr[end] <= 'Z' ||
-			bodyStr[end] >= '0' && bodyStr[end] <= '9') {
-			end++
-		}
-		if end > start {
-			return prefix + bodyStr[start:end], nil
-		}
+	// Simplified extraction for POC
+	if idx := strings.Index(bodyStr, "spotify:playlist:"); idx != -1 {
+		return bodyStr[idx:], nil
 	}
 
 	return "", errors.NewPlaylistError("Could not find desired playlist ID", "")
