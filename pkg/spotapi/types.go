@@ -2,11 +2,12 @@ package spotapi
 
 // track holds spotify track fields needed by bedrock-api.
 type Track struct {
-	ID          string   // bare spotify id, e.g. "5nujrmhLynf4yMoMtj8AQF"
-	URI         string   // "spotify:track:5nujrmhLynf4yMoMtj8AQF"
+	ID          string // bare spotify id, e.g. "5nujrmhLynf4yMoMtj8AQF"
+	URI         string // "spotify:track:5nujrmhLynf4yMoMtj8AQF"
 	Title       string
 	Artist      string   // primary artist name
 	Artists     []string // all artist names
+	ArtistIDs   []string // all artist ids (bare spotify ids), parallel to Artists
 	AlbumID     string   // bare album id
 	AlbumTitle  string
 	CoverURL    string // largest available cover image
@@ -52,7 +53,7 @@ type Playlist struct {
 	Tracks      []Track
 }
 
-//  helpers for digging into raw map[string]interface{} responses 
+//  helpers for digging into raw map[string]interface{} responses
 
 func digMap(m map[string]interface{}, keys ...string) map[string]interface{} {
 	cur := m
@@ -123,20 +124,36 @@ func bestCover(coverArt map[string]interface{}) string {
 	return best
 }
 
-// artistNames extracts names from artists.items[].profile.name
-func artistNames(artistsObj map[string]interface{}) []string {
+// artistInfo holds a spotify artist name and bare id.
+type artistInfo struct {
+	ID   string
+	Name string
+}
+
+// artistInfos extracts ids and names from artists.items[].{uri,id,profile.name}
+func artistInfos(artistsObj map[string]interface{}) []artistInfo {
 	items, _ := artistsObj["items"].([]interface{})
-	var names []string
+	var out []artistInfo
 	for _, it := range items {
 		im, ok := it.(map[string]interface{})
 		if !ok {
 			continue
 		}
-		if n := digStr(im, "profile", "name"); n != "" {
-			names = append(names, n)
+		name := digStr(im, "profile", "name")
+		if name == "" {
+			continue
 		}
+		// prefer uri so we can strip the spotify:artist: prefix; fall back to raw id when present.
+		id := digStr(im, "uri")
+		if id != "" {
+			id = idFromURI(id)
+		}
+		if id == "" {
+			id = digStr(im, "id")
+		}
+		out = append(out, artistInfo{ID: id, Name: name})
 	}
-	return names
+	return out
 }
 
 // idFromURI extracts the bare spotify id from a uri like "spotify:track:xxx" or "spotify:album:xxx".
@@ -215,22 +232,32 @@ func parseTrackUnion(t map[string]interface{}) *Track {
 	// artists: getTrack uses firstArtist/otherArtists;
 	// search/album/playlist items use a flat "artists.items[]" object.
 	if fa := digMap(t, "firstArtist"); fa != nil {
-		names := artistNames(fa)
-		if len(names) > 0 {
-			tr.Artist = names[0]
-			tr.Artists = append(tr.Artists, names...)
+		infos := artistInfos(fa)
+		if len(infos) > 0 {
+			tr.Artist = infos[0].Name
+			for _, ai := range infos {
+				tr.Artists = append(tr.Artists, ai.Name)
+				tr.ArtistIDs = append(tr.ArtistIDs, ai.ID)
+			}
 		}
 	}
 	if oa := digMap(t, "otherArtists"); oa != nil {
-		tr.Artists = append(tr.Artists, artistNames(oa)...)
+		infos := artistInfos(oa)
+		for _, ai := range infos {
+			tr.Artists = append(tr.Artists, ai.Name)
+			tr.ArtistIDs = append(tr.ArtistIDs, ai.ID)
+		}
 	}
 	// flat "artists" object used in search + album + playlist track items
 	if tr.Artist == "" {
 		if ar := digMap(t, "artists"); ar != nil {
-			names := artistNames(ar)
-			if len(names) > 0 {
-				tr.Artist = names[0]
-				tr.Artists = append(tr.Artists, names...)
+			infos := artistInfos(ar)
+			if len(infos) > 0 {
+				tr.Artist = infos[0].Name
+				for _, ai := range infos {
+					tr.Artists = append(tr.Artists, ai.Name)
+					tr.ArtistIDs = append(tr.ArtistIDs, ai.ID)
+				}
 			}
 		}
 	}
