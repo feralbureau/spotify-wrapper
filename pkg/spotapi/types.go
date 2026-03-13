@@ -156,6 +156,18 @@ func artistInfos(artistsObj map[string]interface{}) []artistInfo {
 	return out
 }
 
+// artistNames is a backwards-compatible helper that returns only names from artistInfos.
+func artistNames(artistsObj map[string]interface{}) []string {
+	infos := artistInfos(artistsObj)
+	names := make([]string, 0, len(infos))
+	for _, ai := range infos {
+		if ai.Name != "" {
+			names = append(names, ai.Name)
+		}
+	}
+	return names
+}
+
 // idFromURI extracts the bare spotify id from a uri like "spotify:track:xxx" or "spotify:album:xxx".
 // returns the input unchanged if it contains no colon.
 func idFromURI(uri string) string {
