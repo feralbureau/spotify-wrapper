@@ -1,9 +1,12 @@
 package main
+
 import (
-    tls_client "github.com/bogdanfinn/tls-client"
-    "fmt"
+	"fmt"
+
+	tls_client "github.com/bogdanfinn/tls-client"
 )
+
 func main() {
-    var _ tls_client.HttpClient
-    fmt.Println("Success")
+	var _ tls_client.HttpClient
+	fmt.Println("Success")
 }

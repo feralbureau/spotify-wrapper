@@ -7,10 +7,10 @@ import (
 )
 
 type User struct {
-	Login      *Login
-	userPlan   map[string]interface{}
-	userInfo   map[string]interface{}
-	csrfToken  string
+	Login     *Login
+	userPlan  map[string]interface{}
+	userInfo  map[string]interface{}
+	csrfToken string
 }
 
 func NewUser(l *Login) (*User, error) {

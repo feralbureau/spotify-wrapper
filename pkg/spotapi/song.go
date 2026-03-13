@@ -71,7 +71,7 @@ func (s *Song) QuerySongs(query string, limit int, offset int) (map[string]inter
 		"searchTerm":                    query,
 		"offset":                        offset,
 		"limit":                         limit,
-		"numberOfTopResults":           5,
+		"numberOfTopResults":            5,
 		"includeAudiobooks":             true,
 		"includeArtistHasConcertsField": false,
 		"includePreReleases":            true,

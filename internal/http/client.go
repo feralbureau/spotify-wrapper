@@ -22,10 +22,10 @@ type Response struct {
 type AuthRule func(headers map[string]string) (map[string]string, error)
 
 type Client struct {
-	HttpClient     tls_client.HttpClient
-	AutoRetries    int
-	Authenticate   AuthRule
-	FailException  func(string, string) error
+	HttpClient    tls_client.HttpClient
+	AutoRetries   int
+	Authenticate  AuthRule
+	FailException func(string, string) error
 }
 
 func NewClient(profile profiles.ClientProfile, proxy string, autoRetries int) (*Client, error) {

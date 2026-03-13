@@ -2,8 +2,9 @@ package spotapi
 
 import (
 	"testing"
-	"github.com/spotapi/spotapi-go/internal/http"
+
 	"github.com/bogdanfinn/tls-client/profiles"
+	"github.com/spotapi/spotapi-go/internal/http"
 )
 
 func TestNewPublicPlaylist(t *testing.T) {

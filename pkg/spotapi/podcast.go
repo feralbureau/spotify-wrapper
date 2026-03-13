@@ -11,8 +11,8 @@ import (
 )
 
 type Podcast struct {
-	Base      *http.BaseClient
-	PodcastId string
+	Base        *http.BaseClient
+	PodcastId   string
 	PodcastLink string
 }
 
@@ -24,8 +24,8 @@ func NewPodcast(podcast string, client *http.Client, language string) *Podcast {
 	}
 
 	return &Podcast{
-		Base:      http.NewBaseClient(client, language),
-		PodcastId: podcastId,
+		Base:        http.NewBaseClient(client, language),
+		PodcastId:   podcastId,
 		PodcastLink: "https://open.spotify.com/show/" + podcastId,
 	}
 }

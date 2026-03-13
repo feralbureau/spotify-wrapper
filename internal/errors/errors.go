@@ -36,14 +36,18 @@ type PlayerError struct{ *SpotError }
 type AlbumError struct{ *SpotError }
 type PodcastError struct{ *SpotError }
 
-func NewLoginError(msg, err string) *LoginError { return &LoginError{NewSpotError(msg, err)} }
+func NewLoginError(msg, err string) *LoginError     { return &LoginError{NewSpotError(msg, err)} }
 func NewRequestError(msg, err string) *RequestError { return &RequestError{NewSpotError(msg, err)} }
-func NewBaseClientError(msg, err string) *BaseClientError { return &BaseClientError{NewSpotError(msg, err)} }
+func NewBaseClientError(msg, err string) *BaseClientError {
+	return &BaseClientError{NewSpotError(msg, err)}
+}
 func NewPlaylistError(msg, err string) *PlaylistError { return &PlaylistError{NewSpotError(msg, err)} }
-func NewUserError(msg, err string) *UserError { return &UserError{NewSpotError(msg, err)} }
-func NewSongError(msg, err string) *SongError { return &SongError{NewSpotError(msg, err)} }
-func NewArtistError(msg, err string) *ArtistError { return &ArtistError{NewSpotError(msg, err)} }
-func NewAlbumError(msg, err string) *AlbumError { return &AlbumError{NewSpotError(msg, err)} }
-func NewPodcastError(msg, err string) *PodcastError { return &PodcastError{NewSpotError(msg, err)} }
-func NewWebSocketError(msg, err string) *WebSocketError { return &WebSocketError{NewSpotError(msg, err)} }
+func NewUserError(msg, err string) *UserError         { return &UserError{NewSpotError(msg, err)} }
+func NewSongError(msg, err string) *SongError         { return &SongError{NewSpotError(msg, err)} }
+func NewArtistError(msg, err string) *ArtistError     { return &ArtistError{NewSpotError(msg, err)} }
+func NewAlbumError(msg, err string) *AlbumError       { return &AlbumError{NewSpotError(msg, err)} }
+func NewPodcastError(msg, err string) *PodcastError   { return &PodcastError{NewSpotError(msg, err)} }
+func NewWebSocketError(msg, err string) *WebSocketError {
+	return &WebSocketError{NewSpotError(msg, err)}
+}
 func NewPlayerError(msg, err string) *PlayerError { return &PlayerError{NewSpotError(msg, err)} }
